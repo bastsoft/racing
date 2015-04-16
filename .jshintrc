@@ -33,17 +33,6 @@
   "evil": true,
   "multistr": true,
   "globals": {
-    "describe": true,
-    "it": true,
-    "chai": true,
-    "before": true,
-    "after": true,
-    "beforeEach": true,
-    "afterEach": true,
-    "ush": true,
-    "mocha": true,
-    "require": true,
-    "btr": true,
-    "module": true
+    "Backbone": true
   }
 }
