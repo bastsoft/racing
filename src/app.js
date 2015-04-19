@@ -1,12 +1,12 @@
 var CarView = require('./module/freeCar.view.js');
-var CarModel = require('./module/freeCar.model.js');
+var CarModel = require('./module/car.model.js');
 
 window.onload = function () {
+    var path = JSON.parse(localStorage.path);
     var canvas = $('.canvas')[0];
     var context = canvas.getContext('2d');
     var carModel = new CarModel({
-        x: 0,
-        y: 0,
+        path: path,
         speed: 5,
         angle: 0,
         mod: 0,
