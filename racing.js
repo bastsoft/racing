@@ -1,52 +1,95 @@
 (function e(t,n,r){function s(o,u){if(!n[o]){if(!t[o]){var a=typeof require=="function"&&require;if(!u&&a)return a(o,!0);if(i)return i(o,!0);var f=new Error("Cannot find module '"+o+"'");throw f.code="MODULE_NOT_FOUND",f}var l=n[o]={exports:{}};t[o][0].call(l.exports,function(e){var n=t[o][1][e];return s(n?n:e)},l,l.exports,e,t,n,r)}return n[o].exports}var i=typeof require=="function"&&require;for(var o=0;o<r.length;o++)s(r[o]);return s})({1:[function(require,module,exports){
-var CarView = require('./module/car.view.js');
+var CarView = require('./module/freeCar.view.js');
 var CarModel = require('./module/car.model.js');
 
 window.onload = function () {
+    var path = JSON.parse(localStorage.path);
     var canvas = $('.canvas')[0];
     var context = canvas.getContext('2d');
     var carModel = new CarModel({
-        x: 0,
-        y: 0,
+        path: path,
         speed: 5,
         angle: 0,
         mod: 0,
         imgSrc: 'img/car.png'
     });
 
-    setInterval(draw.bind(null, context, [
+    setInterval(draw.bind(null, canvas, context, [
         _circle(context),
         new CarView({ ctx: context, model: carModel })
     ]), 30);
 };
 
-function draw(context, items) {
-    context.clearRect(0, 0, 800, 800);
+function draw(canvas, context, items) {
+    context.clearRect(0, 0, canvas.width, canvas.height);
 
     items.forEach(function (item) {
         item.render();
     });
 }
 
+function createPoint(context, x, y) {
+    context.beginPath();
+    context.arc(x, y, 4, 0, 2 * Math.PI, false);
+    context.lineWidth = 2;
+    context.fillStyle = 'red';
+    context.fill();
+    context.closePath();
+    context.stroke();
+}
+
 function _circle(context) {
     return {
         render: function () {
-            context.beginPath();
-            context.arc(50, 50, 50, 0, 2 * Math.PI, false);
-            context.lineWidth = 2;
-            context.fillStyle = 'black';
-            context.fill();
-            context.closePath();
-            context.stroke();
+            var path = JSON.parse(localStorage.path);
+
+            for (var i = 0; i <= path.length - 1; i += 1) {
+                createPoint(context, path[i][0], path[i][1]);
+            }
         }
     };
 }
 
-},{"./module/car.model.js":2,"./module/car.view.js":3}],2:[function(require,module,exports){
+},{"./module/car.model.js":2,"./module/freeCar.view.js":3}],2:[function(require,module,exports){
 module.exports = Backbone.Model.extend({
     initialize: function () {
+        var angle = this.get('angle');
+
+        this.path = this.get('path');
+
+        this.set('x', this.path[0][0]);
+        this.set('y', this.path[0][1]);
+
+        angle += this._calculateAngle(0);
+        console.log('angle', angle);
+        this.set('angle', angle);
+
         this._setCarImage();
         this._addEventKey();
+    },
+
+    _calculateAngle: function (i) {
+        var first = {
+            a: [this.path[i][0], this.path[i][1]],
+            b: [this.path[i + 1][0], this.path[i + 1][1]]
+        };
+        var second = {
+            a: [this.get('x'), this.get('y')],
+            b: [this._calculateCoordinates('x', 'cos', 1), this._calculateCoordinates('y', 'sin', 1)]
+        };
+        console.log('first : ', first);
+        console.log('second : ', second);
+        var firstVector = [first.b[0] - first.a[0], first.b[1] - first.a[1]];
+        var secondVector = [second.b[0] - second.a[0], second.b[1] - second.a[1]];
+        console.log('firstVector : ', firstVector);
+        console.log('secondVector : ', secondVector);
+        var scalarProductVectors = (firstVector[0] * secondVector[0]) + (firstVector[1] * secondVector[1]);
+        var firstLengthVectors = Math.sqrt(Math.pow(firstVector[0], 2) + Math.pow(firstVector[1], 2));
+        var secondLengthVectors = Math.sqrt(Math.pow(secondVector[0], 2) + Math.pow(secondVector[1], 2));
+        var cosA = scalarProductVectors / (firstLengthVectors * secondLengthVectors);
+        var radians = Math.acos(cosA);
+
+        return radians * 180 / Math.PI;
     },
 
     _setCarImage: function () {
@@ -81,7 +124,11 @@ module.exports = Backbone.Model.extend({
         };
 
         Object.keys(this._keysPress).forEach(function (key) {
-            this._keyHandlers(key)(obj);
+            var handler = this._keyHandlers(key);
+
+            if (handler) {
+                handler(obj);
+            }
         }, this);
 
         this.set('mod', obj.mod);
@@ -120,8 +167,8 @@ module.exports = Backbone.Model.extend({
 
     calculate: function () {
         this._calculateRotate();
-        this._calculateCoordinates('x', 'cos');
-        this._calculateCoordinates('y', 'sin');
+        this.set('x', this._calculateCoordinates('x', 'cos'));
+        this.set('y', this._calculateCoordinates('y', 'sin'));
     },
 
     _calculateRotate: function () {
@@ -132,12 +179,17 @@ module.exports = Backbone.Model.extend({
         return Math.PI / 180 * this.get('angle');
     },
 
-    _calculateCoordinates: function (axisName, trigonometricalName) {
+    _calculateCoordinates: function (axisName, trigonometricalName, mod) {
         var car = this.toJSON();
         var axis = car[axisName];
 
-        axis += (car.speed * car.mod) * Math[trigonometricalName](this._getRotate());
-        this.set(axisName, axis);
+        if (mod === undefined) {
+            mod = car.mod;
+        }
+
+        axis += (car.speed * mod) * Math[trigonometricalName](this._getRotate());
+
+        return axis;
     }
 });
 
