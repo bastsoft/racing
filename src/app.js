@@ -1,5 +1,5 @@
-var CarView = require('./module/car.view.js');
-var CarModel = require('./module/car.model.js');
+var CarView = require('./module/freeCar.view.js');
+var CarModel = require('./module/freeCar.model.js');
 
 window.onload = function () {
     var canvas = $('.canvas')[0];
@@ -13,30 +13,38 @@ window.onload = function () {
         imgSrc: 'img/car.png'
     });
 
-    setInterval(draw.bind(null, context, [
+    setInterval(draw.bind(null, canvas, context, [
         _circle(context),
         new CarView({ ctx: context, model: carModel })
     ]), 30);
 };
 
-function draw(context, items) {
-    context.clearRect(0, 0, 800, 800);
+function draw(canvas, context, items) {
+    context.clearRect(0, 0, canvas.width, canvas.height);
 
     items.forEach(function (item) {
         item.render();
     });
 }
 
+function createPoint(context, x, y) {
+    context.beginPath();
+    context.arc(x, y, 4, 0, 2 * Math.PI, false);
+    context.lineWidth = 2;
+    context.fillStyle = 'red';
+    context.fill();
+    context.closePath();
+    context.stroke();
+}
+
 function _circle(context) {
     return {
         render: function () {
-            context.beginPath();
-            context.arc(50, 50, 50, 0, 2 * Math.PI, false);
-            context.lineWidth = 2;
-            context.fillStyle = 'black';
-            context.fill();
-            context.closePath();
-            context.stroke();
+            var path = JSON.parse(localStorage.path);
+
+            for (var i = 0; i <= path.length - 1; i += 1) {
+                createPoint(context, path[i][0], path[i][1]);
+            }
         }
     };
 }
