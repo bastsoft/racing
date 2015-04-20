@@ -12,4 +12,5 @@ javascript, jquery. Возможно, canvas.
 Желательно добавить различные фишки
 (например, выбор машины, искусственных соперников и тп).
 
+[trackEditor](http://bastsoft.github.io/racing/trackEditor.html)
 [demo](http://bastsoft.github.io/racing)

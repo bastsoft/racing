@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>trackEditor</title>
+    <meta charset="UTF-8">
+    <script type="text/javascript" src="https://yastatic.net/jquery/1.8.3/jquery.js"></script>
+    <style type="text/css">
+        .canvas
+        {
+            border: 2px solid #333;
+            float: left;
+        }
+
+        .panel
+        {
+            float: left;
+        }
+    </style>
+</head>
+<body>
+<canvas class="canvas" width="1000" height="600"></canvas>
+<div class="panel">
+    <button class="panel__save">Save</button>
+    <input class="panel__detail" type="text" value="3"/>
+    <button class="panel__draw">Draw</button>
+</div>
+
+<script type="text/javascript">
+    var canvas = $('.canvas')[0];
+    var context = canvas.getContext('2d');
+    var formula = {
+        getPointOnLine: function (shift, points) {
+            return [
+                (points[1][0] - points[0][0]) * (shift / detail) + points[0][0],
+                (points[1][1] - points[0][1]) * (shift / detail) + points[0][1]
+            ];
+        },
+
+        getPointOnCurve: function (shift, points) {
+            if (points.length == 2) {
+                return this.getPointOnLine(shift, points);
+            }
+            var pointsPP = [];
+            for (var i = 1; i < points.length; i++) {
+                pointsPP.push(this.getPointOnLine(shift, [
+                    points[i - 1],
+                    points[i]
+                ]));
+            }
+            return this.getPointOnCurve(shift, pointsPP);
+        }
+    };
+    var detail = 100;
+    var startPoint = [500, 60];
+    var points = [
+        startPoint,
+        [1400, 100],
+        [900, 800],
+        [100, 800],
+        [-400, 100],
+        startPoint
+    ];
+    var color = [
+        'red',
+        'black',
+        'blue',
+        'gray',
+        'orange',
+        'red'
+    ];
+    var createPoint = function (x, y, color) {
+        context.beginPath();
+        context.arc(x, y, 4, 0, 2 * Math.PI, false);
+        context.lineWidth = 2;
+        context.fillStyle = color;
+        context.fill();
+        context.closePath();
+        context.stroke();
+    };
+    var path = [];
+
+    points.forEach(function (point, i) {
+        createPoint(point[0], point[1], color[i]);
+    });
+
+    document.querySelector('.panel__save').addEventListener('click', function () {
+        console.log(JSON.stringify(path));
+        localStorage['path'] = JSON.stringify(path);
+    });
+
+    document.querySelector('.panel__draw').addEventListener('click', function () {
+        path = [];
+        detail = parseInt(document.querySelector('.panel__detail').value);
+        context.clearRect(0, 0, canvas.width, canvas.height);
+
+        for (var i = 0; i <= detail; i += 1) {
+            var coord = formula.getPointOnCurve(i, points);
+            path.push(coord);
+            createPoint(coord[0], coord[1], 'red');
+        }
+    });
+</script>
+
+</body>
+</html>
