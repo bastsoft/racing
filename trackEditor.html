@@ -23,6 +23,8 @@
     <button class="panel__save">Save</button>
     <input class="panel__detail" type="text" value="3"/>
     <button class="panel__draw">Draw</button>
+    <br/>
+    <button class="panel__save-to-file">save to file</button>
 </div>
 
 <script type="text/javascript">
@@ -78,10 +80,23 @@
         context.stroke();
     };
     var path = [];
+    var saveToJsonFile = function (data, filename) {
+        var blob = new Blob([JSON.stringify(data, undefined, 4)], { type: 'text/json' });
+        var e = document.createEvent('MouseEvents');
+        var a = document.createElement('a');
+
+        a.download = filename;
+        a.href = window.URL.createObjectURL(blob);
+        a.dataset.downloadurl = ['text/json', a.download, a.href].join(':');
+        e.initEvent('click', true, true);
+        a.dispatchEvent(e);
+    };
 
     points.forEach(function (point, i) {
         createPoint(point[0], point[1], color[i]);
     });
+
+
 
     document.querySelector('.panel__save').addEventListener('click', function () {
         console.log(JSON.stringify(path));
@@ -98,6 +113,10 @@
             path.push(coord);
             createPoint(coord[0], coord[1], 'red');
         }
+    });
+
+    document.querySelector('.panel__save-to-file').addEventListener('click', function () {
+        saveToJsonFile(path, 'path.json');
     });
 </script>
 
