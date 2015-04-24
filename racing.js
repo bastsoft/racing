@@ -2,23 +2,39 @@
 var CarView = require('./module/freeCar.view.js');
 var CarModel = require('./module/car.model.js');
 
-window.onload = function () {
-    var path = JSON.parse(localStorage.path);
+window.onload = $.getJSON.bind($, 'statics/json/path.json', {}, function (pathJson) {
+    var path = localStorage.path ? JSON.parse(localStorage.path) : pathJson;
     var canvas = $('.canvas')[0];
     var context = canvas.getContext('2d');
-    var carModel = new CarModel({
-        path: path,
-        speed: 5,
-        angle: 0,
-        mod: 0,
-        imgSrc: 'img/car.png'
-    });
+    var carImage = new Image();
 
-    setInterval(draw.bind(null, canvas, context, [
-        _circle(context),
-        new CarView({ ctx: context, model: carModel })
-    ]), 30);
-};
+    carImage.onload = function () {
+        var carModel = new CarModel({
+            path: path,
+            speed: 5,
+            angle: 0,
+            mod: 0,
+            img: carImage
+        });
+
+        var carModel2 = new CarModel({
+            speed: 5,
+            angle: 0,
+            mod: 0,
+            x: path[0][0],
+            y: path[0][1] + 100,
+            img: carImage
+        });
+
+        setInterval(draw.bind(null, canvas, context, [
+            _circle(context, path),
+            new CarView({ ctx: context, model: carModel }),
+            new CarView({ ctx: context, model: carModel2 })
+        ]), 30);
+    };
+
+    carImage.src = 'statics/img/car.png';
+});
 
 function draw(canvas, context, items) {
     context.clearRect(0, 0, canvas.width, canvas.height);
@@ -38,11 +54,9 @@ function createPoint(context, x, y) {
     context.stroke();
 }
 
-function _circle(context) {
+function _circle(context, path) {
     return {
         render: function () {
-            var path = JSON.parse(localStorage.path);
-
             for (var i = 0; i <= path.length - 1; i += 1) {
                 createPoint(context, path[i][0], path[i][1]);
             }
@@ -51,15 +65,34 @@ function _circle(context) {
 }
 
 },{"./module/car.model.js":2,"./module/freeCar.view.js":3}],2:[function(require,module,exports){
+var KeyboardModel = require('./keyboard.model.js');
+
 module.exports = Backbone.Model.extend({
     initialize: function () {
         this.path = this.get('path');
-        this.set('x', this.path[0][0]);
-        this.set('y', this.path[0][1]);
-        this.curPathId = 0;
-        this._calculateAngle(this.path[0][0], this.path[0][1]);
+
+        if (this.path) {
+            this.set('x', this.path[0][0]);
+            this.set('y', this.path[0][1]);
+            this.curPathId = 0;
+            this._calculateAngle(this.path[0][0], this.path[0][1]);
+            this.set('mod', 1);
+        } else {
+            this._addEventKey();
+        }
+
         this._setCarImage();
-        this._addEventKey();
+    },
+
+    _addEventKey: function () {
+        var keyModel = new KeyboardModel();
+
+        keyModel.on('all', function () {
+            var angle = this.get('angle');
+
+            this.set('mod', keyModel.get('mod'));
+            this.set('angle', angle + keyModel.get('angle'));
+        }, this);
     },
 
     _calculateAngle: function (x, y) {
@@ -98,76 +131,10 @@ module.exports = Backbone.Model.extend({
     },
 
     _setCarImage: function () {
-        var carImage = new Image();
+        var carImage = this.get('img');
 
-        carImage.src = this.get('imgSrc');
-        this.set('img', carImage);
         this.set('imgWidth', carImage.width);
         this.set('imgHeight', carImage.height);
-    },
-
-    _addEventKey: function () {
-        this._keysPress = {};
-        window.addEventListener('keydown', this._keypress_handler.bind(this), false);
-        window.addEventListener('keyup', this._keyup_handler.bind(this), false);
-    },
-
-    _keyup_handler: function (event) {
-        delete this._keysPress[event.keyCode];
-        this._keyCheck();
-    },
-
-    _keypress_handler: function (event) {
-        this._keysPress[event.keyCode] = true;
-        this._keyCheck();
-    },
-
-    _keyCheck: function () {
-        var obj = {
-            mod: 0,
-            angle: this.get('angle')
-        };
-
-        Object.keys(this._keysPress).forEach(function (key) {
-            var handler = this._keyHandlers(key);
-
-            if (handler) {
-                handler(obj);
-            }
-        }, this);
-
-        this.set('mod', obj.mod);
-        this.set('angle', obj.angle);
-    },
-
-    _keyHandlers: function (keyCode) {
-        var that = this;
-
-        return {
-            38: that.handlers.forward.bind(that),
-            40: that.handlers.reverse.bind(that),
-            37: that.handlers.left.bind(that),
-            39: that.handlers.right.bind(that),
-            87: that.handlers.forward.bind(that), // key W
-            83: that.handlers.reverse.bind(that), // key S
-            65: that.handlers.left.bind(that), // key A
-            68: that.handlers.right.bind(that) // key D
-        }[keyCode];
-    },
-
-    handlers: {
-        forward: function (obj) {
-            obj.mod = 1;
-        },
-        reverse: function (obj) {
-            obj.mod = -1;
-        },
-        left: function (obj) {
-            obj.angle -= 5;
-        },
-        right: function (obj) {
-            obj.angle += 5;
-        }
     },
 
     calculate: function () {
@@ -175,7 +142,11 @@ module.exports = Backbone.Model.extend({
         var y = this._calculateCoordinates('y', 'sin');
 
         this._calculateRotate();
-        this._calculateAngle(x, y);
+
+        if (this.path) {
+            this._calculateAngle(x, y);
+        }
+
         this.set('x', x);
         this.set('y', y);
     },
@@ -202,7 +173,7 @@ module.exports = Backbone.Model.extend({
     }
 });
 
-},{}],3:[function(require,module,exports){
+},{"./keyboard.model.js":4}],3:[function(require,module,exports){
 module.exports = Backbone.View.extend({
     initialize: function (obj) {
         this.ctx = obj.ctx;
@@ -218,6 +189,81 @@ module.exports = Backbone.View.extend({
         this.ctx.drawImage(model.img, 0, (-model.imgHeight / 2), model.imgWidth, model.imgHeight);
         this.ctx.restore();
     }
+});
+
+},{}],4:[function(require,module,exports){
+module.exports = Backbone.Model.extend({
+    initialize: function () {
+        this._keysPress = {};
+        this.set('mod', 0);
+        this.set('angle', 0);
+        this._addEventKey();
+    },
+
+    _addEventKey: function () {
+        window.addEventListener('keydown', this._keypress_handler.bind(this), false);
+        window.addEventListener('keyup', this._keyup_handler.bind(this), false);
+    },
+
+    _keyup_handler: function (event) {
+        delete this._keysPress[event.keyCode];
+        this._keyCheck();
+    },
+
+    _keypress_handler: function (event) {
+        this._keysPress[event.keyCode] = true;
+        this._keyCheck();
+    },
+
+    _keyCheck: function () {
+        var obj = {
+            mod: 0,
+            angle: 0
+        };
+
+        Object.keys(this._keysPress).forEach(function (key) {
+            var handler = this._keyHandlers(key);
+
+            if (handler) {
+                handler(obj);
+            }
+        }, this);
+
+        this.set('mod', obj.mod);
+        this.set('angle', obj.angle);
+        this.set('press', Math.random());
+    },
+
+    _keyHandlers: function (keyCode) {
+        var that = this;
+        var handlers = this._handlers;
+
+        return {
+            38: handlers.forward.bind(that),
+            40: handlers.reverse.bind(that),
+            37: handlers.left.bind(that),
+            39: handlers.right.bind(that),
+            87: handlers.forward.bind(that), // key W
+            83: handlers.reverse.bind(that), // key S
+            65: handlers.left.bind(that), // key A
+            68: handlers.right.bind(that) // key D
+        }[keyCode];
+    },
+
+    _handlers: {
+        forward: function (obj) {
+            obj.mod = 1;
+        },
+        reverse: function (obj) {
+            obj.mod = -1;
+        },
+        left: function (obj) {
+            obj.angle = -1;
+        },
+        right: function (obj) {
+            obj.angle = 1;
+        }
+    },
 });
 
 },{}]},{},[1]);
