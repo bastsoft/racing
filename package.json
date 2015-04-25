@@ -6,7 +6,7 @@
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
     "start": "./node_modules/gulp/bin/gulp.js",
-    "rebuild": "./node_modules/gulp/bin/gulp.js build"
+    "build": "./node_modules/gulp/bin/gulp.js build"
   },
   "devDependencies": {
     "browserify": "9.0.3",
@@ -15,6 +15,7 @@
     "gulp-rename": "1.2.0",
     "gulp-uglify": "1.1.0",
     "opn": "1.0.1",
-    "vinyl-source-stream": "1.1.0"
+    "vinyl-source-stream": "1.1.0",
+    "vow": "0.4.9"
   }
 }

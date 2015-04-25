@@ -3,10 +3,10 @@ var gulp = require('gulp');
 var source = require('vinyl-source-stream');
 
 module.exports = function () {
-    gulp.task('browserify', function () {
-        return browserify('./src/app.js')
+    gulp.task('browserify-editor', function () {
+        return browserify('./src/editor.js')
             .bundle()
-            .pipe(source('racing.js'))
+            .pipe(source('level-editor.js'))
             .pipe(gulp.dest('./'));
     });
 };

@@ -1,35 +1,39 @@
-var KeyboardModel = require('./keyboard.model.js');
+var TransmissionModel = require('./transmission.model.js');
 
 module.exports = Backbone.Model.extend({
     initialize: function () {
         this.path = this.get('path');
+        this.transmission = new TransmissionModel();
+
+        this.transmission.on('change:direction change:angle change:current-acceleration', function (model) {
+            this.set('direction', model.get('direction'));
+            this.set('current-acceleration', model.get('current-acceleration'));
+
+            if (model.get('angle')) {
+                this.set('angle', model.get('angle'));
+            }
+        }.bind(this));
 
         if (this.path) {
-            this.set('x', this.path[0][0]);
-            this.set('y', this.path[0][1]);
+            this.set('x', this.path[0].x);
+            this.set('y', this.path[0].y);
             this.curPathId = 0;
-            this._calculateAngle(this.path[0][0], this.path[0][1]);
-            this.set('mod', 1);
+            this._calculateAngle(this.path[0].x, this.path[0].y);
         } else {
-            this._addEventKey();
+            this.transmission.addEventKey();
         }
 
         this._setCarImage();
     },
 
-    _addEventKey: function () {
-        var keyModel = new KeyboardModel();
-
-        keyModel.on('all', function () {
-            var angle = this.get('angle');
-
-            this.set('mod', keyModel.get('mod'));
-            this.set('angle', angle + keyModel.get('angle'));
-        }, this);
-    },
-
     _calculateAngle: function (x, y) {
-        if ((Math.abs(this.path[this.curPathId][0] - x) < 4 || Math.abs(this.path[this.curPathId][1] - y) < 4)) {
+        var checkTolerance = function (num, x) {
+            var tolerance = 5;
+            console.log(this.curPathId, num, this.path[this.curPathId][num]);
+            return Math.abs(this.path[this.curPathId][num] - x) < tolerance;
+        }.bind(this);
+
+        if (checkTolerance('x', x) || checkTolerance('y', y)) {
             this._setNewAngle();
             this.curPathId = (this.curPathId < this.path.length - 2) ? this.curPathId + 1 : 0;
             this._calculateAngle(x, y);
@@ -45,8 +49,8 @@ module.exports = Backbone.Model.extend({
 
     _calculateAngleRadians: function (i) {
         var first = {
-            a: [this.path[i][0], this.path[i][1]],
-            b: [this.path[i + 1][0], this.path[i + 1][1]]
+            a: [this.path[i].x, this.path[i].y],
+            b: [this.path[i + 1].x, this.path[i + 1].y]
         };
         var second = {
             a: [this.get('x'), this.get('y')],
@@ -92,15 +96,27 @@ module.exports = Backbone.Model.extend({
         return Math.PI / 180 * this.get('angle');
     },
 
-    _calculateCoordinates: function (axisName, trigonometricalName, mod) {
+    _calculateCoordinates: function (axisName, trigonometricalName, direction) {
         var car = this.toJSON();
         var axis = car[axisName];
 
-        if (mod === undefined) {
-            mod = car.mod;
+        if (direction === undefined) {
+            direction = car.direction;
         }
 
-        axis += (car.speed * mod) * Math[trigonometricalName](this._getRotate());
+        this.transmission.setCurrent({
+            value: direction,
+            name: 'acceleration',
+            step: 0.01,
+            max: 5,
+            inertia: true
+        });
+
+        if (!this.path) {
+            console.log(this.get('current-acceleration'));
+        }
+
+        axis += (car.speed * this.get('current-acceleration')) * Math[trigonometricalName](this._getRotate());
 
         return axis;
     }

@@ -1,62 +1,12 @@
 (function e(t,n,r){function s(o,u){if(!n[o]){if(!t[o]){var a=typeof require=="function"&&require;if(!u&&a)return a(o,!0);if(i)return i(o,!0);var f=new Error("Cannot find module '"+o+"'");throw f.code="MODULE_NOT_FOUND",f}var l=n[o]={exports:{}};t[o][0].call(l.exports,function(e){var n=t[o][1][e];return s(n?n:e)},l,l.exports,e,t,n,r)}return n[o].exports}var i=typeof require=="function"&&require;for(var o=0;o<r.length;o++)s(r[o]);return s})({1:[function(require,module,exports){
-var CarView = require('./module/car.view.js');
-var CarModel = require('./module/car.model.js');
-var TrackCollection = require('./module/track.collection.js');
-var TrackView = require('./module/track.view.js');
-var LevelCollection = require('./module/level.collection.js');
-var vow = require('../node_modules/vow/lib/vow.js');
-var canvas = $('.canvas')[0];
-var context = canvas.getContext('2d');
-var onload = (new vow.Promise(function (resolve) {
-    window.onload = resolve;
-}));
-var levelCollection = new LevelCollection();
-var carImage = new Image();
+var EditorView = require('./module/editor/editor.view.js');
 
-onload.then(function () {
-    return levelCollection.loadFromFile('statics/json/level.json');
-}).then(function () {
-    return new vow.Promise(function (resolve) {
-        carImage.onload = resolve(carImage);
-    });
-}).then(function () {
-    var data = levelCollection.toJSON()[0];
-    var carModel = new CarModel({
-        speed: 2,
-        angle: 0,
-        x: 100,
-        y: 100,
-        img: carImage
-    });
-     var carModel2 = new CarModel({
-        path: data.pathCollection.toJSON(),
-        speed: 1,
-        angle: 0,
-        img: carImage
-     });
-    var trackCollection = new TrackCollection();
-    var track = new TrackView({ ctx: context, collection: trackCollection });
+window.onload = function () {
+    var editor = new EditorView();
+    editor.render();
+};
 
-    trackCollection.setPoint(data.trackCollection, data.width);
-
-    setInterval(draw.bind(null, canvas, context, [
-        track,
-        new CarView({ ctx: context, model: carModel }),
-        new CarView({ ctx: context, model: carModel2 })
-    ]), 30);
-});
-
-function draw(canvas, context, items) {
-    context.clearRect(0, 0, canvas.width, canvas.height);
-
-    items.forEach(function (item) {
-        item.render();
-    });
-}
-
-carImage.src = 'statics/img/car2.png';
-
-},{"../node_modules/vow/lib/vow.js":3,"./module/car.model.js":4,"./module/car.view.js":5,"./module/level.collection.js":9,"./module/track.collection.js":11,"./module/track.view.js":13}],2:[function(require,module,exports){
+},{"./module/editor/editor.view.js":4}],2:[function(require,module,exports){
 // shim for using process in browser
 
 var process = module.exports = {};
@@ -1437,149 +1387,218 @@ defineAsGlobal && (global.vow = vow);
 
 }).call(this,require('_process'))
 },{"_process":2}],4:[function(require,module,exports){
-var TransmissionModel = require('./transmission.model.js');
+var LevelView = require('./level.view.js');
+var LevelCollection = require('./../level.collection.js');
+var TrackCollection = require('../track.collection.js');
+var TrackView = require('../track.view.js');
 
-module.exports = Backbone.Model.extend({
+module.exports = Backbone.View.extend({
+    el: '.editor',
+
+    elemButton: _.template('<button class="editor__button_<%= mod %>"><%= content %></button>'),
+    elemLi: _.template('<li class="editor__li_<%= mod %>"><%= content %></li>'),
+
+    events: {},
+
     initialize: function () {
-        this.path = this.get('path');
-        this.transmission = new TransmissionModel();
+        this.levelCollection = new LevelCollection();
 
-        this.transmission.on('change:direction change:angle change:current-acceleration', function (model) {
-            this.set('direction', model.get('direction'));
-            this.set('current-acceleration', model.get('current-acceleration'));
+        this.levelCollection.on('add', function () {
+            this.$('.editor__ul-level').html('');
+            this.levelCollection.each(function (levelModel) {
+                var levelView = new LevelView({ model: levelModel });
+                var level = levelView.render();
+                var li = $(this.elemLi({
+                    mod: 'li-level',
+                    content: ''
+                })).append(level.el);
 
-            if (model.get('angle')) {
-                this.set('angle', model.get('angle'));
-            }
+                this.$('.editor__ul-level').append(li);
+            }.bind(this));
         }.bind(this));
 
-        if (this.path) {
-            this.set('x', this.path[0].x);
-            this.set('y', this.path[0].y);
-            this.curPathId = 0;
-            this._calculateAngle(this.path[0].x, this.path[0].y);
-        } else {
-            this.transmission.addEventKey();
-        }
+        this.button = [];
 
-        this._setCarImage();
-    },
-
-    _calculateAngle: function (x, y) {
-        var checkTolerance = function (num, x) {
-            var tolerance = 5;
-            console.log(this.curPathId, num, this.path[this.curPathId][num]);
-            return Math.abs(this.path[this.curPathId][num] - x) < tolerance;
-        }.bind(this);
-
-        if (checkTolerance('x', x) || checkTolerance('y', y)) {
-            this._setNewAngle();
-            this.curPathId = (this.curPathId < this.path.length - 2) ? this.curPathId + 1 : 0;
-            this._calculateAngle(x, y);
-        }
-    },
-
-    _setNewAngle: function () {
-        var angle = this.get('angle');
-
-        angle += this._calculateAngleRadians(this.curPathId);
-        this.set('angle', angle);
-    },
-
-    _calculateAngleRadians: function (i) {
-        var first = {
-            a: [this.path[i].x, this.path[i].y],
-            b: [this.path[i + 1].x, this.path[i + 1].y]
-        };
-        var second = {
-            a: [this.get('x'), this.get('y')],
-            b: [this._calculateCoordinates('x', 'cos', 1), this._calculateCoordinates('y', 'sin', 1)]
-        };
-        var firstVector = [first.b[0] - first.a[0], first.b[1] - first.a[1]];
-        var secondVector = [second.b[0] - second.a[0], second.b[1] - second.a[1]];
-        var scalarProductVectors = (firstVector[0] * secondVector[0]) + (firstVector[1] * secondVector[1]);
-        var firstLengthVectors = Math.sqrt(Math.pow(firstVector[0], 2) + Math.pow(firstVector[1], 2));
-        var secondLengthVectors = Math.sqrt(Math.pow(secondVector[0], 2) + Math.pow(secondVector[1], 2));
-        var cosA = scalarProductVectors / (firstLengthVectors * secondLengthVectors);
-        var radians = Math.acos(cosA);
-
-        return radians * 180 / Math.PI;
-    },
-
-    _setCarImage: function () {
-        var carImage = this.get('img');
-
-        this.set('imgWidth', carImage.width);
-        this.set('imgHeight', carImage.height);
-    },
-
-    calculate: function () {
-        var x = this._calculateCoordinates('x', 'cos');
-        var y = this._calculateCoordinates('y', 'sin');
-
-        this._calculateRotate();
-
-        if (this.path) {
-            this._calculateAngle(x, y);
-        }
-
-        this.set('x', x);
-        this.set('y', y);
-    },
-
-    _calculateRotate: function () {
-        this.set('rotate', this._getRotate());
-    },
-
-    _getRotate: function () {
-        return Math.PI / 180 * this.get('angle');
-    },
-
-    _calculateCoordinates: function (axisName, trigonometricalName, direction) {
-        var car = this.toJSON();
-        var axis = car[axisName];
-
-        if (direction === undefined) {
-            direction = car.direction;
-        }
-
-        this.transmission.setCurrent({
-            value: direction,
-            name: 'acceleration',
-            step: 0.01,
-            max: 5,
-            inertia: true
+        this._addButton('save', 'SAVE', function () {
+            this.levelCollection.saveToLS();
         });
 
-        if (!this.path) {
-            console.log(this.get('current-acceleration'));
-        }
+        this._addButton('save-to-file', 'SAVE TO FILE', function () {
+            this.levelCollection.saveToFile();
+        });
 
-        axis += (car.speed * this.get('current-acceleration')) * Math[trigonometricalName](this._getRotate());
+        this._addButton('load-from-ls', 'LOAD FROM LS', function () {
+            this.levelCollection.loadFromLs();
+        });
 
-        return axis;
-    }
-});
+        this._addButton('load-from-file', 'LOAD FROM FILE', function () {
+            this.levelCollection.loadFromFile('statics/json/level.json');
+        });
 
-},{"./transmission.model.js":14}],5:[function(require,module,exports){
-module.exports = Backbone.View.extend({
-    initialize: function (obj) {
-        this.ctx = obj.ctx;
+        this._addButton('add-level', 'add level', function () {
+            this.levelCollection.push({});
+        });
+
+        this._addButton('redraw-all', 'redraw All', function () {
+            var data = this.levelCollection.toJSON()[0];
+            var canvas = $('.canvas')[0];
+            var context = canvas.getContext('2d');
+            var trackCollection = new TrackCollection();
+            var track = new TrackView({ ctx: context, collection: trackCollection });
+
+            var createPoint = function (context, x, y) {
+                context.beginPath();
+                context.arc(x, y, 4, 0, 2 * Math.PI, false);
+                context.lineWidth = 2;
+                context.fillStyle = 'red';
+                context.fill();
+                context.closePath();
+                context.stroke();
+            };
+            var _circle = function (context, path) {
+                return {
+                    render: function () {
+                        for (var i = 0; i <= path.length - 1; i += 1) {
+                            createPoint(context, path[i].x, path[i].y);
+                        }
+                    }
+                };
+            };
+
+            trackCollection.setPoint(data.trackCollection, data.width);
+            context.clearRect(0, 0, canvas.width, canvas.height);
+            track.render();
+            _circle(context, data.pathCollection.toJSON()).render();
+        });
+    },
+
+    _addButton: function (name, content, callback) {
+        var localName = '_' + name;
+
+        this['_' + name + 'ButtonRender'] = this.$el.append.bind(this.$el, this.elemButton({
+            mod: name,
+            content: content
+        }));
+
+        this[localName] = callback.bind(this);
+        this.events['click .editor__button' + localName] = localName;
+
+        this.button.push(name);
     },
 
     render: function () {
-        this.model.calculate();
-        var model = this.model.toJSON();
+        this.button.forEach(function (buttonName) {
+            this['_' + buttonName + 'ButtonRender']();
+        }, this);
 
-        this.ctx.save();
-        this.ctx.translate(model.x, model.y);
-        this.ctx.rotate(model.rotate);
-        this.ctx.drawImage(model.img, 0, (-model.imgHeight / 2), model.imgWidth, model.imgHeight);
-        this.ctx.restore();
+        this.$el.append('<ul class="editor__ul-level"></ul>');
     }
 });
 
-},{}],6:[function(require,module,exports){
+},{"../track.collection.js":11,"../track.view.js":13,"./../level.collection.js":9,"./level.view.js":5}],5:[function(require,module,exports){
+var PointView = require('./point.view.js');
+
+module.exports = Backbone.View.extend({
+    elemInput: _.template([
+        '<div>',
+        '<label for="<%= id %>"><%= label %></label>',
+        '<input class="level__input_<%= mod %>" type="number" id="<%= id %>" value="<%= content %>">',
+        '</div>'
+    ].join('')),
+    elemButton: _.template('<button class="level__button_<%= mod %>"><%= content %></button>'),
+    elemLi: _.template('<li class="level__li_<%= mod %>"><%= content %></li>'),
+
+    initialize: function () {
+        this.collections = ['trackCollection', 'pathCollection', 'barriersCollection'];
+
+        this.model.bind('destroy', this.remove, this);
+
+        this.collections.forEach(function (collectionName) {
+            this.model.get(collectionName).on('add', this._redrawTrackItems.bind(this, collectionName));
+
+            this['_add-' + collectionName] = function () {
+                this.model.get(collectionName).push({});
+            }.bind(this);
+
+            this.events['click .level__button_add-' + collectionName] = '_add-' + collectionName;
+        }, this);
+    },
+
+    _redrawTrackItems: function (collectionName) {
+        var ulClass = '.level__ul-' + collectionName;
+
+        this.$(ulClass).html('');
+        this.model.get(collectionName).each(function (pointModel) {
+            var pointView = new PointView({ model: pointModel });
+            var trackItem = pointView.render();
+            var li = $(this.elemLi({
+                mod: 'li-track',
+                content: ''
+            })).append(trackItem.el);
+
+            this.$(ulClass).append(li);
+        }.bind(this));
+    },
+
+    events: {
+        'keyup .level__input_number': '_numberKeyup',
+        'keyup .level__input_width': '_widthKeyup',
+        'click .level__button_delete': '_delete'
+    },
+
+    _delete: function () {
+        this.model.destroy();
+    },
+
+    _numberKeyup: function () {
+        var number = Number(this.$el.find('.level__input_number').val());
+        this.model.set('number', number);
+    },
+
+    _widthKeyup: function () {
+        var width = Number(this.$el.find('.level__input_width').val());
+        this.model.set('width', width);
+    },
+
+    render: function () {
+        this.$el.append(this.elemButton({
+            mod: 'delete',
+            content: 'X'
+        }));
+        this.$el.append(this.elemInput({
+            mod: 'number',
+            label: 'number of tracks',
+            id: ('id' + Math.random()).replace('.', ''),
+            content: this.model.get('number')
+        }));
+        this.$el.append(this.elemInput({
+            mod: 'width',
+            label: 'track width',
+            id: ('id' + Math.random()).replace('.', ''),
+            content: this.model.get('width')
+        }));
+
+        this.collections.forEach(function (collectionName) {
+            this._addCollectionUI(collectionName);
+
+            if (this.model.get(collectionName).length) {
+                this._redrawTrackItems(collectionName);
+            }
+        }, this);
+
+        return this;
+    },
+
+    _addCollectionUI: function (collectionName) {
+        this.$el.append(this.elemButton({
+            mod: 'add-' + collectionName,
+            content: 'add ' + collectionName
+        }));
+        this.$el.append('<ul class="level__ul-' + collectionName + '"></ul>');
+    }
+});
+
+},{"./point.view.js":8}],6:[function(require,module,exports){
 var PointModel = require('./point.model.js');
 
 module.exports = Backbone.Collection.extend({
@@ -1617,77 +1636,77 @@ module.exports = Backbone.Model.extend({
 });
 
 },{}],8:[function(require,module,exports){
-module.exports = Backbone.Model.extend({
+module.exports = Backbone.View.extend({
+    elemInput: _.template([
+        '<div class="point__enter">',
+        '<label for="<%= id %>"><%= label %></label>',
+        '<input class="point__input point__input_<%= mod %>" type="number" id="<%= id %>" value="<%= content %>">',
+        '</div>'
+    ].join('')),
+    elemButton: _.template('<button class="point__button_<%= mod %>"><%= content %></button>'),
+
     initialize: function () {
-        this._keysPress = {};
-        this.set('direction', 0);
-        this.set('turn', 0);
-        this._addEventKey();
+        this.model.bind('destroy', this.remove, this);
+
+        this.button = [];
+
+        this._addButton('delete', 'X', function () {
+            this.model.destroy();
+        });
+        this._addButton('addAfter', '>', function () {
+            this.model.trigger('addAfter', this.model.cid);
+        });
     },
 
-    _addEventKey: function () {
-        window.addEventListener('keydown', this._keypress_handler.bind(this), false);
-        window.addEventListener('keyup', this._keyup_handler.bind(this), false);
+    _addButton: function (name, content, callback) {
+        var localName = '_' + name;
+
+        this['_' + name + 'ButtonRender'] = this.$el.append.bind(this.$el, this.elemButton({
+            mod: name,
+            content: content
+        }));
+
+        this[localName] = callback.bind(this);
+        this.events['click .point__button' + localName] = localName;
+
+        this.button.push(name);
     },
 
-    _keyup_handler: function (event) {
-        delete this._keysPress[event.keyCode];
-        this._keyCheck();
+    events: {
+        'keyup .point__input_x': '_xKeyup',
+        'keyup .point__input_y': '_yKeyup',
+        'click .point__button_delete': '_delete'
     },
 
-    _keypress_handler: function (event) {
-        this._keysPress[event.keyCode] = true;
-        this._keyCheck();
+    _xKeyup: function () {
+        var x = Number(this.$el.find('.point__input_x').val());
+        this.model.set('x', x);
     },
 
-    _keyCheck: function () {
-        var obj = {
-            direction: 0,
-            turn: 0
-        };
+    _yKeyup: function () {
+        var y = Number(this.$el.find('.point__input_y').val());
+        this.model.set('y', y);
+    },
 
-        Object.keys(this._keysPress).forEach(function (key) {
-            var handler = this._keyHandlers(key);
+    render: function () {
+        this.$el.append(this.elemInput({
+            mod: 'x',
+            label: 'x',
+            id: ('id' + Math.random()).replace('.', ''),
+            content: this.model.get('x')
+        }));
+        this.$el.append(this.elemInput({
+            mod: 'y',
+            label: 'y',
+            id: ('id' + Math.random()).replace('.', ''),
+            content: this.model.get('y')
+        }));
 
-            if (handler) {
-                handler(obj);
-            }
+        this.button.forEach(function (buttonName) {
+            this['_' + buttonName + 'ButtonRender']();
         }, this);
 
-        this.set('direction', obj.direction);
-        this.set('turn', obj.turn);
-        this.set('pressId', Math.random());
-    },
-
-    _keyHandlers: function (keyCode) {
-        var that = this;
-        var handlers = this._handlers;
-
-        return {
-            38: handlers.forward.bind(that),
-            40: handlers.reverse.bind(that),
-            37: handlers.left.bind(that),
-            39: handlers.right.bind(that),
-            87: handlers.forward.bind(that), // key W
-            83: handlers.reverse.bind(that), // key S
-            65: handlers.left.bind(that), // key A
-            68: handlers.right.bind(that) // key D
-        }[keyCode];
-    },
-
-    _handlers: {
-        forward: function (obj) {
-            obj.direction = 1;
-        },
-        reverse: function (obj) {
-            obj.direction = -1;
-        },
-        left: function (obj) {
-            obj.turn = -1;
-        },
-        right: function (obj) {
-            obj.turn = 1;
-        }
+        return this;
     }
 });
 
@@ -1840,63 +1859,4 @@ module.exports = Backbone.View.extend({
     }
 });
 
-},{}],14:[function(require,module,exports){
-var KeyboardModel = require('./keyboard.model.js');
-
-module.exports = Backbone.Model.extend({
-    initialize: function () {
-        this.set('direction', 1);
-    },
-
-    addEventKey: function () {
-        this.keyModel = new KeyboardModel();
-        this.set('direction', 0);
-
-        this.keyModel.on('all', function () {
-            var angle = this.get('angle') || 0;
-
-            if (this.get('current-acceleration')) {
-                this.setCurrent({
-                    value: this.keyModel.get('turn'),
-                    name: 'turn',
-                    step: 0.1,
-                    max: 10
-                });
-                this.set('angle', angle + this.get('current-turn'));
-            }
-
-            this.set('direction', this.keyModel.get('direction'));
-        }, this);
-    },
-
-    setCurrent: function (obj) {
-        if (this.get(obj.name) !== obj.value) {
-            this.set(obj.name, obj.value);
-            this.set('current-' + obj.name, this.get(obj.name));
-        }
-
-        obj.what = this.get('current-' + obj.name);
-        obj.trend = this.get(obj.name);
-
-        this.set('current-' + obj.name, this._addAcceleration(obj));
-    },
-
-    _addAcceleration: function (obj) {
-        var newAcceleration;
-        var trendName = 'inertia-trend-' + obj.name;
-        var inertiaName = 'inertia-acceleration-' + obj.name;
-
-        if (obj.trend !== 0 || !obj.inertia) {
-            newAcceleration = (Math.abs(obj.what) + obj.step) * obj.trend;
-            this.set(trendName, obj.trend);
-        } else {
-            newAcceleration = (Math.abs(this.get(inertiaName)) - obj.step) * this.get(trendName);
-        }
-
-        this.set(inertiaName, newAcceleration);
-
-        return (Math.abs(newAcceleration) < obj.max) ? newAcceleration : obj.what;
-    }
-});
-
-},{"./keyboard.model.js":8}]},{},[1]);
+},{}]},{},[1]);

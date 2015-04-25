@@ -33,6 +33,7 @@
   "evil": true,
   "multistr": true,
   "globals": {
-    "Backbone": true
+    "Backbone": true,
+    "_": true
   }
 }

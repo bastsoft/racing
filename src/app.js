@@ -1,38 +1,48 @@
-var CarView = require('./module/freeCar.view.js');
+var CarView = require('./module/car.view.js');
 var CarModel = require('./module/car.model.js');
+var TrackCollection = require('./module/track.collection.js');
+var TrackView = require('./module/track.view.js');
+var LevelCollection = require('./module/level.collection.js');
+var vow = require('../node_modules/vow/lib/vow.js');
+var canvas = $('.canvas')[0];
+var context = canvas.getContext('2d');
+var onload = (new vow.Promise(function (resolve) {
+    window.onload = resolve;
+}));
+var levelCollection = new LevelCollection();
+var carImage = new Image();
 
-window.onload = $.getJSON.bind($, 'statics/json/path.json', {}, function (pathJson) {
-    var path = localStorage.path ? JSON.parse(localStorage.path) : pathJson;
-    var canvas = $('.canvas')[0];
-    var context = canvas.getContext('2d');
-    var carImage = new Image();
+onload.then(function () {
+    return levelCollection.loadFromFile('statics/json/level.json');
+}).then(function () {
+    return new vow.Promise(function (resolve) {
+        carImage.onload = resolve(carImage);
+    });
+}).then(function () {
+    var data = levelCollection.toJSON()[0];
+    var carModel = new CarModel({
+        speed: 2,
+        angle: 0,
+        x: 100,
+        y: 100,
+        img: carImage
+    });
+     var carModel2 = new CarModel({
+        path: data.pathCollection.toJSON(),
+        speed: 1,
+        angle: 0,
+        img: carImage
+     });
+    var trackCollection = new TrackCollection();
+    var track = new TrackView({ ctx: context, collection: trackCollection });
 
-    carImage.onload = function () {
-        var carModel = new CarModel({
-            path: path,
-            speed: 5,
-            angle: 0,
-            mod: 0,
-            img: carImage
-        });
+    trackCollection.setPoint(data.trackCollection, data.width);
 
-        var carModel2 = new CarModel({
-            speed: 5,
-            angle: 0,
-            mod: 0,
-            x: path[0][0],
-            y: path[0][1] + 100,
-            img: carImage
-        });
-
-        setInterval(draw.bind(null, canvas, context, [
-            _circle(context, path),
-            new CarView({ ctx: context, model: carModel }),
-            new CarView({ ctx: context, model: carModel2 })
-        ]), 30);
-    };
-
-    carImage.src = 'statics/img/car.png';
+    setInterval(draw.bind(null, canvas, context, [
+        track,
+        new CarView({ ctx: context, model: carModel }),
+        new CarView({ ctx: context, model: carModel2 })
+    ]), 30);
 });
 
 function draw(canvas, context, items) {
@@ -43,22 +53,4 @@ function draw(canvas, context, items) {
     });
 }
 
-function createPoint(context, x, y) {
-    context.beginPath();
-    context.arc(x, y, 4, 0, 2 * Math.PI, false);
-    context.lineWidth = 2;
-    context.fillStyle = 'red';
-    context.fill();
-    context.closePath();
-    context.stroke();
-}
-
-function _circle(context, path) {
-    return {
-        render: function () {
-            for (var i = 0; i <= path.length - 1; i += 1) {
-                createPoint(context, path[i][0], path[i][1]);
-            }
-        }
-    };
-}
+carImage.src = 'statics/img/car2.png';

@@ -1,9 +1,23 @@
 var gulp = require('./gulp')([
-    'browserify',
-    'webserver',
-    'openbrowser',
+    'browserify-app',
+    'browserify-editor',
     'compress'
 ]);
 
-gulp.task('build', ['browserify']);
-gulp.task('default', ['build', 'webserver', 'openbrowser']);
+var connect = require('gulp-connect');
+
+gulp.task('webserver', function () {
+    connect.server({
+        root: '.',
+        host: 'localhost',
+        port: '13000',
+        livereload: false
+    });
+});
+
+gulp.task('reload', function () {
+    connect.reload();
+});
+
+gulp.task('build', ['browserify-app', 'browserify-editor', 'reload']);
+gulp.task('default', ['build', 'webserver']);
