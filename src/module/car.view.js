@@ -10,7 +10,7 @@ module.exports = Backbone.View.extend({
         this.ctx.save();
         this.ctx.translate(model.x, model.y);
         this.ctx.rotate(model.rotate);
-        this.ctx.drawImage(model.img, 0, (-model.imgHeight / 2), model.imgWidth, model.imgHeight);
+        this.ctx.drawImage(model.img, (-model.imgWidth / 1.5), (-model.imgHeight / 2), model.imgWidth, model.imgHeight);
         this.ctx.restore();
     }
 });

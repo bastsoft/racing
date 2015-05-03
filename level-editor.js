@@ -1452,6 +1452,7 @@ module.exports = Backbone.View.extend({
                 context.lineWidth = 2;
                 context.fillStyle = 'red';
                 context.fill();
+                context.fillStyle = '#000';
                 context.closePath();
                 context.stroke();
             };
@@ -1805,6 +1806,18 @@ module.exports = Backbone.Collection.extend({
                 width: width
             });
         }.bind(this));
+    },
+
+    checkBorder: function (carModel) {
+        return !this.some(function (trackModel, i) {
+            var checkEntry = trackModel.checkEntry(carModel);
+
+            if (checkEntry) {
+                carModel.setCurrentTrack(i, this.length);
+            }
+
+            return checkEntry;
+        }, this);
     }
 });
 
@@ -1826,6 +1839,40 @@ module.exports = Backbone.Model.extend({
             sqrRadius: Math.pow(width, 2),
             length: Math.sqrt(Math.pow(end.y - begin.y, 2) + Math.pow(end.x - begin.x, 2))
         });
+    },
+
+    checkEntry: function (carModel) {
+        var modernPosition = this._turnAndTranslate(carModel);
+
+        return (this._inRectangle(modernPosition) || this._inCircle(modernPosition));
+    },
+
+    _turnAndTranslate: function (carModel) {
+        var begin = this.get('begin');
+
+        return [
+            this.get('cos') * (carModel.get('x') - begin.x) + this.get('sin') * (carModel.get('y') - begin.y),
+            this.get('sin') * (-carModel.get('x') + begin.x) + this.get('cos') * (carModel.get('y') - begin.y)
+        ];
+    },
+
+    _inRectangle: function (position) {
+        if (Math.abs(position[1]) < this.get('radius') && position[0] > 0 && position[0] < this.get('length')) {
+            return true;
+        }
+
+        return false;
+    },
+
+    _inCircle: function (position) {
+        var sqrRadiusBegin = Math.pow(position[0], 2) + Math.pow(position[1], 2);
+        var sqrRadiusEnd = Math.pow(position[1], 2) + Math.pow(position[0] - this.get('length'), 2);
+
+        if ((sqrRadiusBegin < this.get('sqrRadius')) || sqrRadiusEnd < this.get('sqrRadius')) {
+            return true;
+        }
+
+        return false;
     }
 });
 
@@ -1849,6 +1896,8 @@ module.exports = Backbone.View.extend({
             this.ctx.fillRect(0, -radius - width, length, 2 * (radius + width));
             this.ctx.restore();
         }, this);
+
+        this._drawFinish();
     },
 
     _drawCircle: function (x, y, radius) {
@@ -1856,6 +1905,25 @@ module.exports = Backbone.View.extend({
         this.ctx.arc(x, y, radius, 0, Math.PI * 2, false);
         this.ctx.closePath();
         this.ctx.fill();
+    },
+
+    _drawFinish: function () {
+        var model = this.collection.at(1);
+        var begin = model.get('begin');
+        var radius = model.get('radius');
+
+        this.ctx.save();
+        this.ctx.translate(begin.x, begin.y);
+        this.ctx.rotate(model.get('angle'));
+        this.ctx.fillStyle = '#FFF';
+        this.ctx.fillRect(0, -radius, 5, 2 * radius);
+        this.ctx.fillStyle = '#000';
+        this.ctx.fillRect(5, -radius, 3, 2 * radius);
+        this.ctx.restore();
+    },
+
+    checkBorder: function (car) {
+        return this.collection.checkBorder(car.model);
     }
 });
 

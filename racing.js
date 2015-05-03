@@ -23,34 +23,41 @@ onload.then(function () {
     var data = levelCollection.toJSON()[0];
     var carModel = new CarModel({
         speed: 2,
+        accelerationMax: 3,
+        accelerationStep: 0.01,
         angle: 0,
-        x: 100,
-        y: 100,
+        x: data.trackCollection[0].x,
+        y: data.trackCollection[0].y - 30,
         img: carImage
     });
-     var carModel2 = new CarModel({
+    var carModel2 = new CarModel({
         path: data.pathCollection.toJSON(),
         speed: 1,
+        accelerationMax: 1,
+        accelerationStep: 0.005,
         angle: 0,
         img: carImage
-     });
+    });
     var trackCollection = new TrackCollection();
     var track = new TrackView({ ctx: context, collection: trackCollection });
 
     trackCollection.setPoint(data.trackCollection, data.width);
 
-    setInterval(draw.bind(null, canvas, context, [
-        track,
+    setInterval(draw.bind(null, track, [
         new CarView({ ctx: context, model: carModel }),
         new CarView({ ctx: context, model: carModel2 })
     ]), 30);
 });
 
-function draw(canvas, context, items) {
+function draw(track, itemsCar) {
     context.clearRect(0, 0, canvas.width, canvas.height);
 
-    items.forEach(function (item) {
-        item.render();
+    track.render();
+
+    itemsCar.forEach(function (car) {
+        car.model.set('speed', track.checkBorder(car) ? 0.5 : 2);
+
+        car.render();
     });
 }
 
@@ -1455,7 +1462,7 @@ module.exports = Backbone.Model.extend({
 
         if (this.path) {
             this.set('x', this.path[0].x);
-            this.set('y', this.path[0].y);
+            this.set('y', this.path[0].y + 30);
             this.curPathId = 0;
             this._calculateAngle(this.path[0].x, this.path[0].y);
         } else {
@@ -1463,47 +1470,47 @@ module.exports = Backbone.Model.extend({
         }
 
         this._setCarImage();
+        this.set('currentTrack', -1);
     },
 
     _calculateAngle: function (x, y) {
-        var checkTolerance = function (num, x) {
-            var tolerance = 5;
-            console.log(this.curPathId, num, this.path[this.curPathId][num]);
-            return Math.abs(this.path[this.curPathId][num] - x) < tolerance;
+        var checkTolerance = function (num, coor) {
+            var tolerance = Math.abs(this.path[this.curPathId][num] - coor);
+
+            return tolerance < 30;
         }.bind(this);
 
-        if (checkTolerance('x', x) || checkTolerance('y', y)) {
-            this._setNewAngle();
-            this.curPathId = (this.curPathId < this.path.length - 2) ? this.curPathId + 1 : 0;
+        if (checkTolerance('x', x) && checkTolerance('y', y)) {
+            this.set('angle', this._getNewAngle(this.get('angle')));
+            this.curPathId = (this.curPathId < this.path.length - 1) ? this.curPathId + 1 : 0;
             this._calculateAngle(x, y);
         }
     },
 
-    _setNewAngle: function () {
-        var angle = this.get('angle');
+    _getNewAngle: function (angle) {
+        angle -= this._calculateAngleRadians(this.curPathId);
 
-        angle += this._calculateAngleRadians(this.curPathId);
-        this.set('angle', angle);
+        return angle;
     },
 
     _calculateAngleRadians: function (i) {
+        var j = this.path[i + 1] ? i + 1 : 0;
         var first = {
             a: [this.path[i].x, this.path[i].y],
-            b: [this.path[i + 1].x, this.path[i + 1].y]
+            b: [this.path[j].x, this.path[j].y]
         };
         var second = {
             a: [this.get('x'), this.get('y')],
             b: [this._calculateCoordinates('x', 'cos', 1), this._calculateCoordinates('y', 'sin', 1)]
         };
-        var firstVector = [first.b[0] - first.a[0], first.b[1] - first.a[1]];
-        var secondVector = [second.b[0] - second.a[0], second.b[1] - second.a[1]];
-        var scalarProductVectors = (firstVector[0] * secondVector[0]) + (firstVector[1] * secondVector[1]);
-        var firstLengthVectors = Math.sqrt(Math.pow(firstVector[0], 2) + Math.pow(firstVector[1], 2));
-        var secondLengthVectors = Math.sqrt(Math.pow(secondVector[0], 2) + Math.pow(secondVector[1], 2));
-        var cosA = scalarProductVectors / (firstLengthVectors * secondLengthVectors);
-        var radians = Math.acos(cosA);
 
-        return radians * 180 / Math.PI;
+        var deltX1 = first.b[0] - first.a[0];
+        var deltY1 = first.b[1] - first.a[1];
+
+        var deltX2 = second.b[0] - second.a[0];
+        var deltY2 = second.b[1] - second.a[1];
+
+        return (Math.atan2(deltX1, deltY1) - Math.atan2(deltX2, deltY2)) * 180 / Math.PI;
     },
 
     _setCarImage: function () {
@@ -1546,18 +1553,24 @@ module.exports = Backbone.Model.extend({
         this.transmission.setCurrent({
             value: direction,
             name: 'acceleration',
-            step: 0.01,
-            max: 5,
+            step: car.accelerationStep,
+            max: car.accelerationMax,
             inertia: true
         });
-
-        if (!this.path) {
-            console.log(this.get('current-acceleration'));
-        }
 
         axis += (car.speed * this.get('current-acceleration')) * Math[trigonometricalName](this._getRotate());
 
         return axis;
+    },
+
+    setCurrentTrack: function (currentTrack, lengthTrack) {
+        if (lengthTrack - 1 === this.get('currentTrack')) {
+            this.set('currentTrack', -1);
+        }
+
+        if (currentTrack === this.get('currentTrack') + 1) {
+            this.set('currentTrack', currentTrack);
+        }
     }
 });
 
@@ -1574,7 +1587,7 @@ module.exports = Backbone.View.extend({
         this.ctx.save();
         this.ctx.translate(model.x, model.y);
         this.ctx.rotate(model.rotate);
-        this.ctx.drawImage(model.img, 0, (-model.imgHeight / 2), model.imgWidth, model.imgHeight);
+        this.ctx.drawImage(model.img, (-model.imgWidth / 1.5), (-model.imgHeight / 2), model.imgWidth, model.imgHeight);
         this.ctx.restore();
     }
 });
@@ -1786,6 +1799,18 @@ module.exports = Backbone.Collection.extend({
                 width: width
             });
         }.bind(this));
+    },
+
+    checkBorder: function (carModel) {
+        return !this.some(function (trackModel, i) {
+            var checkEntry = trackModel.checkEntry(carModel);
+
+            if (checkEntry) {
+                carModel.setCurrentTrack(i, this.length);
+            }
+
+            return checkEntry;
+        }, this);
     }
 });
 
@@ -1807,6 +1832,40 @@ module.exports = Backbone.Model.extend({
             sqrRadius: Math.pow(width, 2),
             length: Math.sqrt(Math.pow(end.y - begin.y, 2) + Math.pow(end.x - begin.x, 2))
         });
+    },
+
+    checkEntry: function (carModel) {
+        var modernPosition = this._turnAndTranslate(carModel);
+
+        return (this._inRectangle(modernPosition) || this._inCircle(modernPosition));
+    },
+
+    _turnAndTranslate: function (carModel) {
+        var begin = this.get('begin');
+
+        return [
+            this.get('cos') * (carModel.get('x') - begin.x) + this.get('sin') * (carModel.get('y') - begin.y),
+            this.get('sin') * (-carModel.get('x') + begin.x) + this.get('cos') * (carModel.get('y') - begin.y)
+        ];
+    },
+
+    _inRectangle: function (position) {
+        if (Math.abs(position[1]) < this.get('radius') && position[0] > 0 && position[0] < this.get('length')) {
+            return true;
+        }
+
+        return false;
+    },
+
+    _inCircle: function (position) {
+        var sqrRadiusBegin = Math.pow(position[0], 2) + Math.pow(position[1], 2);
+        var sqrRadiusEnd = Math.pow(position[1], 2) + Math.pow(position[0] - this.get('length'), 2);
+
+        if ((sqrRadiusBegin < this.get('sqrRadius')) || sqrRadiusEnd < this.get('sqrRadius')) {
+            return true;
+        }
+
+        return false;
     }
 });
 
@@ -1830,6 +1889,8 @@ module.exports = Backbone.View.extend({
             this.ctx.fillRect(0, -radius - width, length, 2 * (radius + width));
             this.ctx.restore();
         }, this);
+
+        this._drawFinish();
     },
 
     _drawCircle: function (x, y, radius) {
@@ -1837,13 +1898,31 @@ module.exports = Backbone.View.extend({
         this.ctx.arc(x, y, radius, 0, Math.PI * 2, false);
         this.ctx.closePath();
         this.ctx.fill();
+    },
+
+    _drawFinish: function () {
+        var model = this.collection.at(1);
+        var begin = model.get('begin');
+        var radius = model.get('radius');
+
+        this.ctx.save();
+        this.ctx.translate(begin.x, begin.y);
+        this.ctx.rotate(model.get('angle'));
+        this.ctx.fillStyle = '#FFF';
+        this.ctx.fillRect(0, -radius, 5, 2 * radius);
+        this.ctx.fillStyle = '#000';
+        this.ctx.fillRect(5, -radius, 3, 2 * radius);
+        this.ctx.restore();
+    },
+
+    checkBorder: function (car) {
+        return this.collection.checkBorder(car.model);
     }
 });
 
 },{}],14:[function(require,module,exports){
 var KeyboardModel = require('./keyboard.model.js');
-
-module.exports = Backbone.Model.extend({
+TransmissionModel = Backbone.Model.extend({
     initialize: function () {
         this.set('direction', 1);
     },
@@ -1882,21 +1961,40 @@ module.exports = Backbone.Model.extend({
     },
 
     _addAcceleration: function (obj) {
-        var newAcceleration;
-        var trendName = 'inertia-trend-' + obj.name;
-        var inertiaName = 'inertia-acceleration-' + obj.name;
-
-        if (obj.trend !== 0 || !obj.inertia) {
-            newAcceleration = (Math.abs(obj.what) + obj.step) * obj.trend;
-            this.set(trendName, obj.trend);
-        } else {
-            newAcceleration = (Math.abs(this.get(inertiaName)) - obj.step) * this.get(trendName);
-        }
-
-        this.set(inertiaName, newAcceleration);
+        var newAcceleration = (obj.inertia ? this._toAccelerateInertia.bind(this) : this._toAccelerate.bind(this))(obj);
 
         return (Math.abs(newAcceleration) < obj.max) ? newAcceleration : obj.what;
+    },
+
+    _toAccelerate: function (obj) {
+        return (Math.abs(obj.what) + obj.step) * obj.trend;
+    },
+
+    _toAccelerateInertia: function (obj) {
+        var newAcceleration;
+        var trendName = 'trend-' + obj.name;
+        var inertiaName = 'acceleration-' + obj.name;
+        var vector = -1;
+        var inertia = this.get(inertiaName) || obj.what;
+        var trend = this.get(trendName);
+
+        if (obj.trend !== 0) {
+            if (inertia && (trend && trend !== obj.trend)) {
+                inertia -= (0.02 * trend);
+            } else {
+                vector = 1;
+                trend = obj.trend;
+            }
+        }
+
+        newAcceleration = (Math.abs(inertia) + (obj.step * vector)) * trend;
+        this.set(inertiaName, Math.abs(newAcceleration) < 0.94 ? 0 : newAcceleration);
+        this.set(trendName, trend);
+
+        return this.get(inertiaName);
     }
 });
+
+module.exports = TransmissionModel;
 
 },{"./keyboard.model.js":8}]},{},[1]);

@@ -16,7 +16,7 @@ module.exports = Backbone.Model.extend({
 
         if (this.path) {
             this.set('x', this.path[0].x);
-            this.set('y', this.path[0].y);
+            this.set('y', this.path[0].y + 30);
             this.curPathId = 0;
             this._calculateAngle(this.path[0].x, this.path[0].y);
         } else {
@@ -24,47 +24,47 @@ module.exports = Backbone.Model.extend({
         }
 
         this._setCarImage();
+        this.set('currentTrack', -1);
     },
 
     _calculateAngle: function (x, y) {
-        var checkTolerance = function (num, x) {
-            var tolerance = 5;
-            console.log(this.curPathId, num, this.path[this.curPathId][num]);
-            return Math.abs(this.path[this.curPathId][num] - x) < tolerance;
+        var checkTolerance = function (num, coor) {
+            var tolerance = Math.abs(this.path[this.curPathId][num] - coor);
+
+            return tolerance < 30;
         }.bind(this);
 
-        if (checkTolerance('x', x) || checkTolerance('y', y)) {
-            this._setNewAngle();
-            this.curPathId = (this.curPathId < this.path.length - 2) ? this.curPathId + 1 : 0;
+        if (checkTolerance('x', x) && checkTolerance('y', y)) {
+            this.set('angle', this._getNewAngle(this.get('angle')));
+            this.curPathId = (this.curPathId < this.path.length - 1) ? this.curPathId + 1 : 0;
             this._calculateAngle(x, y);
         }
     },
 
-    _setNewAngle: function () {
-        var angle = this.get('angle');
+    _getNewAngle: function (angle) {
+        angle -= this._calculateAngleRadians(this.curPathId);
 
-        angle += this._calculateAngleRadians(this.curPathId);
-        this.set('angle', angle);
+        return angle;
     },
 
     _calculateAngleRadians: function (i) {
+        var j = this.path[i + 1] ? i + 1 : 0;
         var first = {
             a: [this.path[i].x, this.path[i].y],
-            b: [this.path[i + 1].x, this.path[i + 1].y]
+            b: [this.path[j].x, this.path[j].y]
         };
         var second = {
             a: [this.get('x'), this.get('y')],
             b: [this._calculateCoordinates('x', 'cos', 1), this._calculateCoordinates('y', 'sin', 1)]
         };
-        var firstVector = [first.b[0] - first.a[0], first.b[1] - first.a[1]];
-        var secondVector = [second.b[0] - second.a[0], second.b[1] - second.a[1]];
-        var scalarProductVectors = (firstVector[0] * secondVector[0]) + (firstVector[1] * secondVector[1]);
-        var firstLengthVectors = Math.sqrt(Math.pow(firstVector[0], 2) + Math.pow(firstVector[1], 2));
-        var secondLengthVectors = Math.sqrt(Math.pow(secondVector[0], 2) + Math.pow(secondVector[1], 2));
-        var cosA = scalarProductVectors / (firstLengthVectors * secondLengthVectors);
-        var radians = Math.acos(cosA);
 
-        return radians * 180 / Math.PI;
+        var deltX1 = first.b[0] - first.a[0];
+        var deltY1 = first.b[1] - first.a[1];
+
+        var deltX2 = second.b[0] - second.a[0];
+        var deltY2 = second.b[1] - second.a[1];
+
+        return (Math.atan2(deltX1, deltY1) - Math.atan2(deltX2, deltY2)) * 180 / Math.PI;
     },
 
     _setCarImage: function () {
@@ -107,17 +107,23 @@ module.exports = Backbone.Model.extend({
         this.transmission.setCurrent({
             value: direction,
             name: 'acceleration',
-            step: 0.01,
-            max: 5,
+            step: car.accelerationStep,
+            max: car.accelerationMax,
             inertia: true
         });
-
-        if (!this.path) {
-            console.log(this.get('current-acceleration'));
-        }
 
         axis += (car.speed * this.get('current-acceleration')) * Math[trigonometricalName](this._getRotate());
 
         return axis;
+    },
+
+    setCurrentTrack: function (currentTrack, lengthTrack) {
+        if (lengthTrack - 1 === this.get('currentTrack')) {
+            this.set('currentTrack', -1);
+        }
+
+        if (currentTrack === this.get('currentTrack') + 1) {
+            this.set('currentTrack', currentTrack);
+        }
     }
 });

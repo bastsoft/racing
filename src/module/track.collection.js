@@ -17,5 +17,17 @@ module.exports = Backbone.Collection.extend({
                 width: width
             });
         }.bind(this));
+    },
+
+    checkBorder: function (carModel) {
+        return !this.some(function (trackModel, i) {
+            var checkEntry = trackModel.checkEntry(carModel);
+
+            if (checkEntry) {
+                carModel.setCurrentTrack(i, this.length);
+            }
+
+            return checkEntry;
+        }, this);
     }
 });
