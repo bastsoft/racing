@@ -1,8 +1,8 @@
 module.exports = Backbone.Model.extend({
     initialize: function () {
         this._keysPress = {};
-        this.set('mod', 0);
-        this.set('angle', 0);
+        this.set('direction', 0);
+        this.set('turn', 0);
         this._addEventKey();
     },
 
@@ -23,8 +23,8 @@ module.exports = Backbone.Model.extend({
 
     _keyCheck: function () {
         var obj = {
-            mod: 0,
-            angle: 0
+            direction: 0,
+            turn: 0
         };
 
         Object.keys(this._keysPress).forEach(function (key) {
@@ -35,9 +35,9 @@ module.exports = Backbone.Model.extend({
             }
         }, this);
 
-        this.set('mod', obj.mod);
-        this.set('angle', obj.angle);
-        this.set('press', Math.random());
+        this.set('direction', obj.direction);
+        this.set('turn', obj.turn);
+        this.set('pressId', Math.random());
     },
 
     _keyHandlers: function (keyCode) {
@@ -58,16 +58,16 @@ module.exports = Backbone.Model.extend({
 
     _handlers: {
         forward: function (obj) {
-            obj.mod = 1;
+            obj.direction = 1;
         },
         reverse: function (obj) {
-            obj.mod = -1;
+            obj.direction = -1;
         },
         left: function (obj) {
-            obj.angle = -1;
+            obj.turn = -1;
         },
         right: function (obj) {
-            obj.angle = 1;
+            obj.turn = 1;
         }
-    },
+    }
 });

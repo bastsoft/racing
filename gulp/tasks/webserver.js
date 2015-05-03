@@ -10,4 +10,8 @@ module.exports = function () {
             livereload: false
         });
     });
+
+    gulp.task('stop-webserver', function () {
+        connect.serverClose();
+    });
 };
