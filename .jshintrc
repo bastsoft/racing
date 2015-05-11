@@ -34,6 +34,11 @@
   "multistr": true,
   "globals": {
     "Backbone": true,
-    "_": true
+    "_": true,
+    "chai": true,
+    "describe": true,
+    "beforeEach": true,
+    "it": true,
+    "before": true
   }
 }

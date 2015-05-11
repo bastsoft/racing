@@ -1,6 +1,5 @@
 var KeyboardModel = require('./keyboard.model.js');
-
-module.exports = Backbone.Model.extend({
+TransmissionModel = Backbone.Model.extend({
     initialize: function () {
         this.set('direction', 1);
     },
@@ -39,19 +38,38 @@ module.exports = Backbone.Model.extend({
     },
 
     _addAcceleration: function (obj) {
-        var newAcceleration;
-        var trendName = 'inertia-trend-' + obj.name;
-        var inertiaName = 'inertia-acceleration-' + obj.name;
-
-        if (obj.trend !== 0 || !obj.inertia) {
-            newAcceleration = (Math.abs(obj.what) + obj.step) * obj.trend;
-            this.set(trendName, obj.trend);
-        } else {
-            newAcceleration = (Math.abs(this.get(inertiaName)) - obj.step) * this.get(trendName);
-        }
-
-        this.set(inertiaName, newAcceleration);
+        var newAcceleration = (obj.inertia ? this._toAccelerateInertia.bind(this) : this._toAccelerate.bind(this))(obj);
 
         return (Math.abs(newAcceleration) < obj.max) ? newAcceleration : obj.what;
+    },
+
+    _toAccelerate: function (obj) {
+        return (Math.abs(obj.what) + obj.step) * obj.trend;
+    },
+
+    _toAccelerateInertia: function (obj) {
+        var newAcceleration;
+        var trendName = 'trend-' + obj.name;
+        var inertiaName = 'acceleration-' + obj.name;
+        var vector = -1;
+        var inertia = this.get(inertiaName) || obj.what;
+        var trend = this.get(trendName);
+
+        if (obj.trend !== 0) {
+            if (inertia && (trend && trend !== obj.trend)) {
+                inertia -= (0.02 * trend);
+            } else {
+                vector = 1;
+                trend = obj.trend;
+            }
+        }
+
+        newAcceleration = (Math.abs(inertia) + (obj.step * vector)) * trend;
+        this.set(inertiaName, Math.abs(newAcceleration) < 0.94 ? 0 : newAcceleration);
+        this.set(trendName, trend);
+
+        return this.get(inertiaName);
     }
 });
+
+module.exports = TransmissionModel;

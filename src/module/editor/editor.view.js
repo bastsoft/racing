@@ -63,6 +63,7 @@ module.exports = Backbone.View.extend({
                 context.lineWidth = 2;
                 context.fillStyle = 'red';
                 context.fill();
+                context.fillStyle = '#000';
                 context.closePath();
                 context.stroke();
             };
